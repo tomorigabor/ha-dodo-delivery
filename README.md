@@ -50,6 +50,7 @@ Pl.: `input_text.dodo_tracking_code`
 
 ## 3) Blueprint import + automation létrehozás
 - Automation → Blueprints → Import blueprint (URL vagy fájl)
+- Blueprint import URL: https://raw.githubusercontent.com/tomorigabor/ha-dodo-delivery/main/blueprints/automation/dodo_delivery_imap_to_input_text.yaml
 - Hozz létre belőle egy automatizmust:
   - add meg az IMAP entry_id-t (IMAP integrációból)
   - add meg a cél `input_text` entitást
