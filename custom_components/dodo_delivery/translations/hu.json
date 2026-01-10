@@ -1,0 +1,30 @@
+{
+  "title": "DODO kiszállítás",
+  "config": {
+    "step": {
+      "user": {
+        "title": "DODO kiszállítás",
+        "description": "Válaszd ki, hogyan adod meg a tracking kódot."
+      },
+      "manual": {
+        "title": "Tracking kód megadása",
+        "description": "Add meg a 8 karakteres tracking kódot (vagy t.idodo.group linket)."
+      },
+      "entity": {
+        "title": "Tracking kód entitásból",
+        "description": "Válassz egy entitást, amelynek állapota tartalmazza a 8 karakteres kódot (vagy t.idodo.group linket)."
+      }
+    },
+    "error": {
+      "invalid_code": "Érvénytelen tracking kód.",
+      "entity_no_code": "A kiválasztott entitás nem tartalmaz érvényes tracking kódot."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DODO kiszállítás beállítások"
+      }
+    }
+  }
+}

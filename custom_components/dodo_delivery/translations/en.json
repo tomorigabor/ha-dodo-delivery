@@ -1,0 +1,22 @@
+{
+  "title": "DODO Delivery",
+  "config": {
+    "step": {
+      "user": {
+        "title": "DODO Delivery",
+        "description": "Track a Tesco delivery handled by DODO using a tracking code or a helper entity."
+      }
+    },
+    "error": {
+      "invalid_code": "Invalid tracking code.",
+      "entity_no_code": "The selected entity does not contain a valid tracking code."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "DODO Delivery options"
+      }
+    }
+  }
+}
