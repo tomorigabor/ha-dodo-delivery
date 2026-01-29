@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -17,6 +16,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     API_BASE,
     DETAIL_PATH,
+    STATUS_PATH,
     DOMAIN,
     CONF_MODE,
     MODE_MANUAL,
@@ -66,6 +66,9 @@ class DodoDeliveryCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._session = async_get_clientsession(hass)
         self._finished_at: datetime | None = None
         self._last_status: str | None = None
+        self._current_code: str | None = None
+        self._detail_cache: dict[str, Any] | None = None
+
     def _get_tracking_code(self) -> str | None:
         mode = self.entry.options.get(CONF_MODE, self.entry.data.get(CONF_MODE, MODE_MANUAL))
         if mode == MODE_ENTITY:
@@ -99,6 +102,14 @@ class DodoDeliveryCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "detail": None,
             }
 
+        # If tracking code changes (e.g., IMAP helper updated), reset internal state
+        # so a previous delivery's "finished" retention can't leak into the new one.
+        if code != self._current_code:
+            self._current_code = code
+            self._finished_at = None
+            self._last_status = None
+            self._detail_cache = None
+
         if self._retention_expired(now, retention_hours):
             return {
                 ATTR_ACTIVE: False,
@@ -109,10 +120,34 @@ class DodoDeliveryCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "detail": None,
             }
 
-        url = f"{API_BASE}{DETAIL_PATH.format(code=code)}"
+        # 1) DETAIL is mostly static; cache it to reduce load and avoid needless churn.
+        if self._detail_cache is None:
+            detail_url = f"{API_BASE}{DETAIL_PATH.format(code=code)}"
+            try:
+                async with self._session.get(detail_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status == 404:
+                        return {
+                            ATTR_ACTIVE: False,
+                            ATTR_REASON: "not_found",
+                            ATTR_TRACKING_CODE: code,
+                            ATTR_LAST_UPDATE: now.isoformat(),
+                            ATTR_LAST_SEEN_STATUS: self._last_status,
+                            "detail": None,
+                        }
+                    if resp.status >= 400:
+                        raise UpdateFailed(f"HTTP {resp.status}")
+                    self._detail_cache = await resp.json()
+            except asyncio.CancelledError:
+                raise
+            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                raise UpdateFailed(f"Request failed (detail): {err}") from err
+            except ValueError as err:
+                raise UpdateFailed(f"Invalid JSON (detail): {err}") from err
 
+        # 2) STATUS is dynamic and includes the courier live coordinates.
+        status_url = f"{API_BASE}{STATUS_PATH.format(code=code)}"
         try:
-            async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with self._session.get(status_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 404:
                     return {
                         ATTR_ACTIVE: False,
@@ -124,13 +159,18 @@ class DodoDeliveryCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     }
                 if resp.status >= 400:
                     raise UpdateFailed(f"HTTP {resp.status}")
-                payload = await resp.json()
+                status_payload = await resp.json()
         except asyncio.CancelledError:
             raise
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            raise UpdateFailed(f"Request failed: {err}") from err
+            raise UpdateFailed(f"Request failed (status): {err}") from err
         except ValueError as err:
-            raise UpdateFailed(f"Invalid JSON: {err}") from err
+            raise UpdateFailed(f"Invalid JSON (status): {err}") from err
+
+        # 3) Merge: make a single payload so the sensor can read everything from one place.
+        payload: dict[str, Any] = dict(self._detail_cache or {})
+        if isinstance(status_payload, dict):
+            payload.update(status_payload)
 
         # Track finished time for retention
         raw_status = (payload.get("status") or "").strip()

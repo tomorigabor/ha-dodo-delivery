@@ -17,6 +17,7 @@ DEFAULT_INCLUDE_DESTINATION = False
 
 API_BASE = "https://api.gaia.delivery"
 DETAIL_PATH = "/order-tracking/orders/{code}/detail"
+STATUS_PATH = "/order-tracking/orders/{code}/status"
 
 ATTR_TRACKING_CODE = "tracking_code"
 ATTR_ACTIVE = "active"

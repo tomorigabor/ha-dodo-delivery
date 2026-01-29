@@ -1,62 +1,55 @@
-# DODO Delivery (Tesco HU) – Home Assistant (beta)
+# DODO Delivery (Tesco) – Home Assistant custom integration (v1.0.0)
 
-Ez az egyéni (custom) integráció a DODO nyomkövetés publikus endpointját használva lekéri a Tesco (HU) kiszállítás állapotát **egyetlen szenzorban**, attribútumokkal.
+This is a local-only test package. It creates **one sensor entity** with rich attributes,
+and can read the tracking code either from:
+- Manual tracking code
+- An entity (e.g., `input_text.dodo_tracking_code`), where the state contains the 8-char code or an `https://t.idodo.group/XXXXXXXX` link.
 
-## Mit tud?
-- 1 db szenzor entitás (attribútumokban: státusz, idősáv, expectedStart, futár, pickup koordináta, stb.)
-- Poll alapú frissítés
-- Tracking code megadható:
-  - kézzel (manual)
-  - vagy **entity-ből** (pl. `input_text.dodo_tracking_code`) – ez a javasolt
+## Install (manual)
+1. Copy `custom_components/dodo_delivery` into your HA config folder:
+   - `<config>/custom_components/dodo_delivery/`
+2. Restart Home Assistant.
+3. Settings → Devices & services → Add integration → **DODO Delivery (Tesco)**
 
-## Adatvédelmi megjegyzés
-A DODO API válaszában szerepelhetnek helyadatok (koordináták). Aki telepíti, tudomásul veszi, hogy a szenzor attribútumaiban ezek megjelenhetnek.
+## Options
+- Mode: `entity` or `manual`
+- Poll interval (sec): default 20
+- Retention after Finished (hours): default 12
+- Include destination coordinates: default OFF
 
----
+## Notes
+- API used: `https://api.gaia.delivery/order-tracking/orders/<CODE>/detail`
+- This integration is intended for personal use / testing.
 
-# Telepítés (béta)
 
-## 1) Integráció fájlok bemásolása
-Másold a repo `custom_components/dodo_delivery/` mappáját ide:
 
-`/config/custom_components/dodo_delivery/`
+## HACS installation
 
-Indítsd újra a Home Assistant-et.
+This repository is structured for HACS as a **custom repository**.
 
-## 2) Integráció hozzáadása
-Beállítások → Eszközök és szolgáltatások → Integráció hozzáadása → **DODO Delivery**
+1. HACS → **Integrations** → ⋮ → **Custom repositories**
+2. Add: `tomorigabor/ha-dodo-delivery` with category **Integration**
+3. Install **DODO Delivery (Tesco.hu)**, then restart Home Assistant.
 
-A varázslóban választhatsz:
-- **Entity mód** (ajánlott): add meg a tracking code-ot tartalmazó entitást (pl. `input_text.dodo_tracking_code`)
-- **Manual mód**: add meg kézzel a 8 karakteres tracking code-ot
+## Lovelace card (bundled)
 
----
+The card is included in this repo at:
 
-# IMAP automatizálás (opcionális)
+- `/dodo_delivery/dodo-delivery-card.js` (served by the integration)
 
-A Tesco/DODO küld egy e-mailt, benne `https://t.idodo.group/XXXXXXXX` linkkel (8 karakter a kód).
-Az alábbi blueprint ezt kiolvassa és beírja az `input_text` entitásba.
+Add it as a Lovelace resource:
 
-## 1) IMAP integration beállítása
-Beállítások → Integrációk → IMAP
+- Settings → Dashboards → Resources → **Add resource**
+  - URL: `/dodo_delivery/dodo-delivery-card.js`
+  - Type: **JavaScript Module**
 
-- Search: `UnSeen UnDeleted` (alap)
-- Folder: `INBOX` (vagy ahova jön)
-- Jelöld be: Subject + Text/Body (hogy az esemény payloadban benne legyen)
+Then add the card:
 
-## 2) Input Text létrehozása
-Beállítások → Eszközök és szolgáltatások → Segédek → **Szöveg**
-Pl.: `input_text.dodo_tracking_code`
+```yaml
+type: custom:dodo-delivery-card
+entity: sensor.dodo_delivery
+```
 
-## 3) Blueprint import + automation létrehozás
-- Automation → Blueprints → Import blueprint (URL vagy fájl)
-- Blueprint import URL: https://raw.githubusercontent.com/tomorigabor/ha-dodo-delivery/main/blueprints/automation/dodo_delivery_imap_to_input_text.yaml
-- Hozz létre belőle egy automatizmust:
-  - add meg az IMAP entry_id-t (IMAP integrációból)
-  - add meg a cél `input_text` entitást
+### Z-index note
 
----
-
-# Teszt
-- Küldj magadnak egy teszt e-mailt, lehetőleg forwardolva magadnak egy korábbi DODO-s e-mailt amit kapsz mikor elindul a folyamat
-- Nézd meg, hogy az input_text frissül-e, majd az integráció szenzora aktiválódik-e.
+The card keeps Leaflet control z-index values low to avoid covering the Home Assistant sidebar (especially on mobile).

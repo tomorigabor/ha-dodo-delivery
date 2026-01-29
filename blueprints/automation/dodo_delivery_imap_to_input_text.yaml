@@ -1,35 +1,36 @@
 blueprint:
   name: Tesco DODO tracking code -> input_text (IMAP)
   description: >
-    IMAP (imap_content) eseményből kinyeri a https://t.idodo.group/XXXXXXXX (8 karakter) kódot,
-    és beírja egy input_text segédbe. Forwardolt levelekre is jó (a link a body-ban van).
+    Extracts the 8-character tracking code from the DODO email and writes it into an input_text helper.
+    Works with the IMAP integration event: imap_content.
   domain: automation
   input:
     imap_entry_id:
       name: IMAP entry_id
-      description: Az IMAP integráció entry_id-ja (Developer Tools -> Events payloadból).
+      description: The IMAP integration entry_id that triggers the imap_content event.
       selector:
-        text:
-    target_input_text:
-      name: Cél input_text
-      description: Ide írja be a tracking code-ot.
+        text: {}
+    input_text_entity:
+      name: input_text entity
+      description: The helper where the 8-character tracking code will be stored.
       selector:
         entity:
           domain: input_text
     subject_must_contain:
-      name: Tárgyszűrő (opcionális)
-      description: Ha nem üres, csak akkor fut, ha a tárgy tartalmazza ezt a szöveget.
+      name: Subject must contain (optional)
+      description: If set, only process emails whose subject contains this substring (case-insensitive).
       default: "DODO"
       selector:
-        text:
+        text: {}
     require_idodo_link:
-      name: Kötelező legyen idodo link
-      description: Ha true, csak akkor fut, ha talál idodo linket a body-ban.
+      name: Require t.idodo.group link
+      description: Only run when the email body contains a t.idodo.group link.
       default: true
       selector:
-        boolean:
+        boolean: {}
 
 mode: single
+max_exceeded: silent
 
 trigger:
   - platform: event
@@ -45,22 +46,32 @@ variables:
   text: "{{ trigger.event.data.text | default('') }}"
 
   tracking_code: >-
-    {%- set m = (text | regex_findall('t\\.idodo\\.group/([A-Za-z0-9]{8})')) -%}
-    {{ (m[0] if (m is iterable and (m|length)>0) else '') }}
+    {%- set matches = (text | regex_findall('t\.idodo\.group\/?\s*\(?\s*https?:\/\/t\.idodo\.group\/([A-Za-z0-9]{8})', ignorecase=True)) -%}
+    {%- if matches and matches[0] -%}
+      {{ matches[0] }}
+    {%- else -%}
+      {%- set m2 = (text | regex_findall('t\.idodo\.group\/([A-Za-z0-9]{8})', ignorecase=True)) -%}
+      {{ m2[0] if m2 else '' }}
+    {%- endif -%}
 
 condition:
   - condition: template
     value_template: "{{ ev_entry_id == entry_id_in }}"
   - condition: template
-    value_template: >-
-      {{ (subject_must_contain_in | length == 0) or (subject is string and (subject_must_contain_in in subject)) }}
+    value_template: >
+      {% set smc = (subject_must_contain_in | default('')) | string %}
+      {% if smc | length == 0 %} true
+      {% else %} {{ (subject | lower).find(smc | lower) != -1 }} {% endif %}
   - condition: template
-    value_template: >-
-      {{ (not require_idodo_link_in) or (tracking_code | length == 8) }}
+    value_template: >
+      {% if not require_idodo_link_in %} true
+      {% else %} {{ (text | lower).find('t.idodo.group') != -1 }} {% endif %}
+  - condition: template
+    value_template: "{{ tracking_code | length == 8 }}"
 
 action:
   - service: input_text.set_value
     target:
-      entity_id: !input target_input_text
+      entity_id: !input input_text_entity
     data:
       value: "{{ tracking_code }}"
