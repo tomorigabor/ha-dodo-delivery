@@ -49,7 +49,3 @@ Then add the card:
 type: custom:dodo-delivery-card
 entity: sensor.dodo_delivery
 ```
-
-### Z-index note
-
-The card keeps Leaflet control z-index values low to avoid covering the Home Assistant sidebar (especially on mobile).
